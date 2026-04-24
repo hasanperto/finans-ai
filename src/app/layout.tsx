@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Link from "next/link";
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, Receipt, MessageCircle } from "lucide-react";
+import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, Receipt, MessageCircle, Settings } from "lucide-react";
+import MobileNav from "./components/MobileNav";
 
 export const metadata: Metadata = {
   title: "FinansAI - Akıllı Finans Yönetimi",
@@ -17,7 +18,7 @@ export default function RootLayout({
     <html lang="tr">
       <body>
         <div className="app-layout">
-          {/* Sidebar */}
+          {/* Desktop Sidebar */}
           <aside className="sidebar">
             <div className="sidebar-logo">FinansAI</div>
             
@@ -42,6 +43,10 @@ export default function RootLayout({
                 <MessageCircle size={20} />
                 AI Asistan
               </Link>
+              <Link href="/settings" className="nav-item">
+                <Settings size={20} />
+                Ayarlar
+              </Link>
             </nav>
           </aside>
 
@@ -49,6 +54,9 @@ export default function RootLayout({
           <main className="main-content">
             {children}
           </main>
+
+          {/* Mobile Bottom Navigation */}
+          <MobileNav />
         </div>
       </body>
     </html>
