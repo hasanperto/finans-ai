@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FinansAI
 
-## Getting Started
+Kişisel finans yönetim paneli — offline çalışan, kurulabilir bir PWA. Telefon, tablet ve masaüstünde çalışır. Veri tamamen cihazda (IndexedDB) tutulur; sunucu/bulut zorunluluğu yoktur.
 
-First, run the development server:
+- **Stack:** Next.js 16 (App Router, Turbopack), React 19, TypeScript, Recharts, lucide-react
+- **Yerel veritabanı:** IndexedDB (Dexie)
+- **Güvenlik:** İsteğe bağlı şifreli giriş (PBKDF2-SHA256, Web Crypto API)
+- **Diller:** TR / DE
+- **PWA:** manifest + service worker + install prompt + offline
+
+## Geliştirme
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm run lint
+npm run build
+npm start        # prod sunucu
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Netlify'a deploy
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Netlify'da yeni bir site oluşturun ve bu repoya bağlayın.
+2. Build ayarları otomatik olarak `netlify.toml` üzerinden alınır:
+   - Build command: `npm run build`
+   - `@netlify/plugin-nextjs` çıktı yapısını ve yönlendirmeleri yönetir (publish dir el ile ayarlanmamalı).
+   - Node sürümü 20.
+3. İlk deploy sonrası şu yolları kontrol edin:
+   - `https://<site>/manifest.json` → uygulama manifesti
+   - `https://<site>/sw.js` → service worker (Cache-Control: max-age=0)
+   - DevTools → Application → Manifest, Service Workers, Installability ✓
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Lokal Netlify dry run (opsiyonel):
+```bash
+npm install -g netlify-cli
+netlify build       # plugin'i çalıştırır
+netlify dev         # Netlify Functions dahil önizleme
+```
 
-## Learn More
+## PWA notları
 
-To learn more about Next.js, take a look at the following resources:
+- Service worker'da statik kabuk önbelleği + navigation için network-first, statikler için stale-while-revalidate.
+- Cross-origin istekler (AI sağlayıcı, kur servisi) önbelleğe alınmaz.
+- Yeni sürüm dağıtırken `public/sw.js` içindeki `VERSION` sabitini artırın → eski cache otomatik temizlenir.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Veri ve gizlilik
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Tüm finansal veri tarayıcının IndexedDB'sinde (`finansai_db`) saklanır.
+- localStorage'dan otomatik göç edilir (mevcut kullanıcılar için sıfır kesinti).
+- Şifre ve gizli soru yanıtı PBKDF2-SHA256 (100k iter + salt) ile hash'lenmiş olarak saklanır.
+- Cihazlar arası taşıma için: Ayarlar → Veri Yönetimi → **Yedek İndir** / **Yedeği İçe Aktar** (JSON v2).
 
-## Deploy on Vercel
+## Senaryolar
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Öğrenci** — burs, part-time, kira, market, ulaşım
+- **Aile** — iki maaş, kredi, faturalar, çocuk, araç
+- **Freelancer** — proje, retainer, yazılım, vergi (EUR)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Lisans
+
+Kişisel kullanım için.

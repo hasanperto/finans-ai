@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <title>FinansAI - Sistem Özeti & Mobil/PWA Analizi</title>
+    <style>
+      :root {
+        --bg: #0b0b12;
+        --card: rgba(255, 255, 255, 0.04);
+        --border: rgba(255, 255, 255, 0.1);
+        --text: #e8eaf6;
+        --muted: #a7afc2;
+        --accent: #8b5cf6;
+        --good: #10b981;
+        --warn: #f59e0b;
+        --bad: #ef4444;
+        --info: #6366f1;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        background: radial-gradient(1200px 800px at 10% 0%, rgba(139, 92, 246, 0.18), transparent 55%),
+          radial-gradient(900px 600px at 100% 10%, rgba(16, 185, 129, 0.12), transparent 55%),
+          var(--bg);
+        color: var(--text);
+        -webkit-text-size-adjust: 100%;
+      }
+      a { color: var(--accent); }
+      .container { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+      .header { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+      .title { font-size: clamp(22px, 4vw, 30px); font-weight: 800; letter-spacing: 0.2px; margin: 0; }
+      .subtitle { margin: 0; color: var(--muted); line-height: 1.5; }
+      .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; margin-top: 18px; }
+      .card {
+        grid-column: span 12;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .card h2 { font-size: 16px; margin: 0 0 10px 0; letter-spacing: 0.2px; }
+      ul { margin: 10px 0 0 18px; padding: 0; }
+      li { margin: 6px 0; color: var(--muted); line-height: 1.55; }
+      .k { color: var(--text); font-weight: 700; }
+      .pill {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+        margin-right: 6px;
+        margin-bottom: 4px;
+      }
+      .pill.good { border-color: rgba(16, 185, 129, 0.4); color: rgba(16, 185, 129, 0.95); }
+      .pill.warn { border-color: rgba(245, 158, 11, 0.4); color: rgba(245, 158, 11, 0.95); }
+      .pill.bad { border-color: rgba(239, 68, 68, 0.4); color: rgba(239, 68, 68, 0.95); }
+      .pill.info { border-color: rgba(99, 102, 241, 0.4); color: rgba(129, 140, 248, 0.95); }
+      .two {
+        grid-column: span 12;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+      }
+      @media (max-width: 860px) {
+        .two { grid-template-columns: 1fr; }
+        .container { padding: 20px 12px 80px; }
+      }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--muted);
+        line-height: 1.55;
+      }
+      .status { display: inline-block; font-weight: 700; margin-right: 6px; }
+      .status.fixed { color: rgba(16, 185, 129, 0.95); }
+      .status.todo  { color: rgba(245, 158, 11, 0.95); }
+      .status.bug   { color: rgba(239, 68, 68, 0.95); }
+      .status.new   { color: rgba(129, 140, 248, 0.95); }
+      table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+      th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--muted); vertical-align: top; }
+      th { color: var(--text); font-weight: 600; background: rgba(255,255,255,0.02); }
+      .roadmap-phase {
+        border-left: 3px solid var(--accent);
+        padding-left: 12px;
+        margin: 12px 0;
+      }
+      .roadmap-phase.p1 { border-left-color: var(--bad); }
+      .roadmap-phase.p2 { border-left-color: var(--warn); }
+      .roadmap-phase.p3 { border-left-color: var(--good); }
+      .roadmap-phase.p4 { border-left-color: var(--info); }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1 class="title">FinansAI — Sistem Özeti, Mobil/PWA & Geliştirme Yol Haritası</h1>
+        <p class="subtitle">
+          Tarayıcı tabanlı kişisel finans paneli. Bu belge mevcut sistemi, son yapılan UI/UX
+          + PWA + tablet/mobil iyileştirmelerini, tespit edilen hata/eksikleri ve önerilen
+          geliştirme yol haritasını özetler. Tarih: 2026-05-23.
+        </p>
+        <div>
+          <span class="pill good">PWA (offline)</span>
+          <span class="pill good">Mobil + Tablet uyumlu</span>
+          <span class="pill good">TR / DE</span>
+          <span class="pill info">Next.js 16.2.4 · React 19</span>
+          <span class="pill good">IndexedDB (Dexie) yerel veritabanı</span>
+          <span class="pill good">Şifre PBKDF2-SHA256 hash</span>
+          <span class="pill good">JSON import/export</span>
+          <span class="pill good">Bütçe modülü (kategori limitleri + uyarı)</span>
+        </div>
+      </div>
+
+      <div class="grid">
+
+        <!-- 1) Program -->
+        <div class="two">
+          <section class="card">
+            <h2>1) Program Nedir?</h2>
+            <ul>
+              <li><span class="k">Amaç:</span> Gelir/gider kaydı, kategorilendirme, aylık özet ve grafiklerle takip; istenirse AI asistanla finans soruları.</li>
+              <li><span class="k">Çalışma biçimi:</span> Backend/DB zorunlu değil; veriler tarayıcıda saklanır.</li>
+              <li><span class="k">Dil:</span> Türkçe ve Almanca arayüz (mobilde de hızlı geçiş).</li>
+              <li><span class="k">Para birimi:</span> TRY/EUR/USD/GBP/CHF + (SILBER/GOLD) gösterim.</li>
+              <li><span class="k">Cihazlar:</span> Telefon, tablet, masaüstü — responsive + PWA destekli.</li>
+            </ul>
+          </section>
+
+          <section class="card">
+            <h2>2) Kullanılan Teknoloji</h2>
+            <ul>
+              <li><span class="k">Framework:</span> Next.js <span class="mono">16.2.4</span> (App Router, Turbopack)</li>
+              <li><span class="k">UI:</span> React <span class="mono">19.2.4</span>, TypeScript</li>
+              <li><span class="k">Grafikler:</span> Recharts</li>
+              <li><span class="k">İkonlar:</span> lucide-react</li>
+              <li><span class="k">Lint:</span> ESLint (Next.js config)</li>
+              <li><span class="k">PWA:</span> <span class="mono">manifest.json</span> + <span class="mono">/sw.js</span> service worker (static + runtime cache)</li>
+              <li><span class="k">Yerel veritabanı:</span> <span class="mono">Dexie 4</span> üzerinden IndexedDB (offline, GB seviyesinde, indeksli).</li>
+              <li><span class="k">Kriptografi:</span> Web Crypto API — PBKDF2-SHA256 (100.000 iter, 16 byte salt).</li>
+              <li><span class="k">Deploy:</span> Netlify (build = <span class="mono">npm run build</span>, publish = <span class="mono">.next</span>)</li>
+            </ul>
+          </section>
+        </div>
+
+        <!-- Yerel Veritabanı bölümü -->
+        <section class="card">
+          <h2>2.5) Yerel Veritabanı & Kişisel Mod (offline)</h2>
+          <p style="color: var(--muted); margin: 4px 0 10px 0; line-height: 1.55;">
+            Cihaz başına ayrı, tamamen <span class="k">offline</span> çalışan kişisel kullanım için yeniden yapılandırıldı.
+          </p>
+          <ul>
+            <li><span class="k">Veri katmanı:</span> Artık <span class="mono">localStorage</span> değil <span class="mono">IndexedDB</span> (Dexie sarmalı). 3 store: <span class="mono">transactions</span>, <span class="mono">recurring</span>, <span class="mono">meta</span>. <span class="mono">date / type / category / isActive / nextDue</span> indeksli.</li>
+            <li><span class="k">Otomatik göç:</span> İlk açılışta <span class="mono">localStorage</span>'daki tüm veri IndexedDB'ye taşınır, <span class="mono">finansai_db_migrated_v1</span> bayrağı kurulur. Eski anahtarlar silinmez (güvenli geri dönüş).</li>
+            <li><span class="k">Şifre güvenliği:</span> Düz metin saklama kaldırıldı; PBKDF2-SHA256 (100k iter + per-secret salt) hash. Format: <span class="mono">pbkdf2$&lt;iter&gt;$&lt;saltB64&gt;$&lt;hashB64&gt;</span>. Karşılaştırma sabit zamanlı.</li>
+            <li><span class="k">Eski şifre yükseltme:</span> Var olan düz metin şifre ilk doğru girişte otomatik hash'lenip kaydedilir — kullanıcı için fark yok.</li>
+            <li><span class="k">Gizli soru yanıtı:</span> Aynı hash yöntemiyle saklanıyor; "Şifremi unuttum" akışı bozulmadan çalışıyor.</li>
+            <li><span class="k">JSON yedek:</span> Hem "İndir" hem de "İçe aktar" akışı eklendi — başka cihaza taşıma artık tek dosyalık iş.</li>
+            <li><span class="k">Tekrarlayan otomatik üretim:</span> Yükleme + sekme görünür olduğunda + her saat tetikleniyor (catch-up, geçmiş günler için).</li>
+            <li><span class="k">Kapasite:</span> ~5 MB localStorage sınırı yerine pratik olarak GB seviyesinde IndexedDB; binlerce işlem performans sorunu yaratmaz.</li>
+            <li><span class="k">Internet gerekmiyor:</span> Veritabanı tamamen cihazda. Yalnızca kur servisi (frankfurter) ve AI çağrıları opsiyonel ağ — biri başarısızsa son değer/önbellek kullanılır.</li>
+          </ul>
+          <div class="note">
+            <span class="pill info">PWA + Lokal DB</span>
+            Telefon ve tablet için <span class="k">kişiye özel</span> tasarım: cihaz açılışta uygulamayı yükler, oradan sonra
+            internet olmasa bile gelir/gider girişi, raporlar ve filtreler çalışır. Yedek "İndir"/"İçe aktar" ile cihazlar arası taşıma manuel olarak yapılabilir.
+          </div>
+        </section>
+
+        <!-- Bütçe modülü -->
+        <section class="card">
+          <h2>2.6) Bütçe Modülü (yeni)</h2>
+          <p style="color: var(--muted); margin: 4px 0 10px 0; line-height: 1.55;">
+            Kategori başına aylık üst sınır + ilerleme + uyarılar. Telefonda en sık bakılacak görünüm.
+          </p>
+          <ul>
+            <li><span class="k">Veri:</span> <span class="mono">Settings.budgets: Budget[]</span> — her giriş <span class="mono">{ categoryId, amount, period: 'monthly' }</span>. Mevcut <span class="mono">meta</span> store'unda <span class="mono">settings</span> içinde saklanır; ayrı store gerekmedi.</li>
+            <li><span class="k">Hesap:</span> <span class="mono">src/app/lib/budget.ts</span> — saf fonksiyon, içinde bulunulan ayın gider toplamını kategoriye göre çıkarıp her bütçe için <span class="mono">{ spent, remaining, percent, level }</span> üretir. Seviye eşiği: %80 → <span class="mono">warn</span>, %100 → <span class="mono">over</span>.</li>
+            <li><span class="k">Ayarlar UI:</span> Yeni <span class="k">Bütçeler</span> sekmesinde her gider kategorisi için input + Kaydet/Kaldır + canlı ilerleme çubuğu (yeşil/sarı/kırmızı).</li>
+            <li><span class="k">Dashboard:</span> En sıkışık 5 bütçe ilerleme çubuğu olarak gösterilir. Aşılan kategori varsa kırmızı banner ("{n} kategoride aylık bütçe aşıldı"), aşılma yoksa ama %80'i geçen varsa sarı uyarı banner'ı.</li>
+            <li><span class="k">i18n:</span> <span class="mono">budget.*</span> anahtarları TR/DE sözlüklere eklendi.</li>
+            <li><span class="k">Erişilebilirlik:</span> Bütçe çubukları, durum renklerinin yanına yüzde ve sayısal toplam — sadece renk üzerinden anlam vermiyor.</li>
+          </ul>
+        </section>
+
+        <!-- 3) Modüller -->
+        <section class="card">
+          <h2>3) Modüller / Sayfalar</h2>
+          <ul>
+            <li><span class="k">Dashboard (/):</span> Toplam gelir/gider, net bakiye, tasarruf oranı, son 6 ay barı, kategori pasta grafiği, AI önerisi, son işlemler.</li>
+            <li><span class="k">Gelirler (/income):</span> Gelir ekleme/düzenleme/silme, tekrarlayan gelir, kategori dağılımı, yıllık projeksiyon.</li>
+            <li><span class="k">Giderler (/expenses):</span> Gider ekleme/düzenleme/silme, tekrarlayan gider, zorunlu/isteğe bağlı ayrımı.</li>
+            <li><span class="k">İşlemler (/transactions):</span> Tarih (bu ay, geçen ay, 3/6 ay, tümü), tür filtresi, arama, CSV dışa aktarma.</li>
+            <li><span class="k">AI Asistan (/assistant):</span> Gemini / OpenAI / MiniMax / OpenRouter / Custom sağlayıcı, finansal bağlam ile soru-cevap.</li>
+            <li><span class="k">Ayarlar (/settings):</span> Dil, para birimi, AI ayarları, güvenlik (gizli soru), kategoriler, <span class="k">bütçeler</span>, raporlar, yedekleme (JSON) ve örnek senaryolar.</li>
+          </ul>
+        </section>
+
+        <!-- 4) Bu çalışmada yapılan iyileştirmeler -->
+        <section class="card">
+          <h2>4) Bu çalışmada yapılan iyileştirmeler (UI/UX + PWA + Tablet)</h2>
+          <table>
+            <thead>
+              <tr><th>Alan</th><th>Durum</th><th>Açıklama</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>PWA Manifest</td>
+                <td><span class="status fixed">✓ DÜZELTİLDİ</span></td>
+                <td><span class="mono">manifest.json</span> Next.js metadata üzerinden bağlandı; <span class="mono">orientation: any</span>, <span class="mono">display_override</span>, maskable ikonlar, uygulama kısayolları eklendi.</td>
+              </tr>
+              <tr>
+                <td>Service Worker</td>
+                <td><span class="status new">+ YENİ</span></td>
+                <td><span class="mono">/public/sw.js</span> — statik kabuk önbelleği + navigation için network-first, statikler için stale-while-revalidate. Cross-origin AI/FX istekleri cache'lenmez.</td>
+              </tr>
+              <tr>
+                <td>iOS PWA meta</td>
+                <td><span class="status new">+ YENİ</span></td>
+                <td><span class="mono">apple-mobile-web-app-capable</span>, <span class="mono">status-bar-style</span>, apple-touch-icon, format-detection meta'ları layout'ta tanımlandı.</td>
+              </tr>
+              <tr>
+                <td>Viewport</td>
+                <td><span class="status bug">✓ HATA DÜZELTİLDİ</span></td>
+                <td><span class="mono">user-scalable=no, maximum-scale=1</span> kaldırıldı (erişilebilirlik ihlali). Kullanıcı zoom serbest, <span class="mono">viewport-fit: cover</span> ile çentik desteği.</td>
+              </tr>
+              <tr>
+                <td>Modal z-index hatası</td>
+                <td><span class="status bug">✓ KRİTİK HATA DÜZELTİLDİ</span></td>
+                <td>Modallar <span class="mono">z:100</span>, mobil alt menü <span class="mono">z:9999</span> idi → alt menü modali kapatıyordu. <span class="mono">.modal-overlay</span> sınıfı <span class="mono">z:10000</span>, mobil nav <span class="mono">z:50</span> yapıldı.</td>
+              </tr>
+              <tr>
+                <td>Tablet breakpoint</td>
+                <td><span class="status new">+ YENİ</span></td>
+                <td>769–1024px tablet aralığı eklendi: sidebar 220px, stats 2 kolon, içerik nefes alıyor. Tabletler artık portrait + landscape destekli.</td>
+              </tr>
+              <tr>
+                <td>Top App Bar (mobil/tablet)</td>
+                <td><span class="status new">+ YENİ</span></td>
+                <td>Mobilde sidebar gizlendiği için marka + dil değiştirici sticky bir üst bar olarak geri eklendi (<span class="mono">safe-area-inset-top</span> destekli).</td>
+              </tr>
+              <tr>
+                <td>iOS giriş alanı zoom</td>
+                <td><span class="status fixed">✓ DÜZELTİLDİ</span></td>
+                <td>Form inputları 0.95rem (≈15px) idi → iOS Safari odakta zoom yapıyordu. 1rem (16px) + 44px min yüksekliğe çıkarıldı.</td>
+              </tr>
+              <tr>
+                <td>Mobil alt menü</td>
+                <td><span class="status fixed">✓ İYİLEŞTİRİLDİ</span></td>
+                <td>6 madde sığacak şekilde tipografi/küçük ekran uyumu, <span class="mono">aria-current</span>, <span class="mono">aria-label</span>, 44×44 min dokunma alanı.</td>
+              </tr>
+              <tr>
+                <td>Install Prompt</td>
+                <td><span class="status new">+ YENİ</span></td>
+                <td>Android/Chrome <span class="mono">beforeinstallprompt</span> yakalanıp uygulama içi "Yükle" balonu olarak gösteriliyor; "X" ile kapatma kalıcı.</td>
+              </tr>
+              <tr>
+                <td>SSR hidrasyon uyumsuzluğu</td>
+                <td><span class="status bug">✓ DÜZELTİLDİ</span></td>
+                <td><span class="mono">I18nContext</span> initial state'i SSR-safe yapıldı; localStorage okuma effect'e taşındı.</td>
+              </tr>
+              <tr>
+                <td>Dashboard son işlemler</td>
+                <td><span class="status fixed">✓ DÜZELTİLDİ</span></td>
+                <td>Önceki kod ekleme sırasına göre kesiyordu; artık <span class="mono">date</span> alanına göre azalan sıralanıyor.</td>
+              </tr>
+              <tr>
+                <td>Aylık etiket dili</td>
+                <td><span class="status fixed">✓ DÜZELTİLDİ</span></td>
+                <td>Grafik ay kısaltmaları sabit <span class="mono">tr-TR</span> idi; <span class="mono">language</span> bayrağına göre <span class="mono">de-DE</span> / <span class="mono">tr-TR</span>.</td>
+              </tr>
+              <tr>
+                <td>Mobil yatay kaydırılabilir filtre çubukları</td>
+                <td><span class="status new">+ YENİ</span></td>
+                <td><span class="mono">.filters</span> mobilde yan kaydırılabilir, scroll bar gizli — chip'ler taşmıyor.</td>
+              </tr>
+              <tr>
+                <td>Erişilebilirlik</td>
+                <td><span class="status fixed">✓ İYİLEŞTİRİLDİ</span></td>
+                <td><span class="mono">prefers-reduced-motion</span>, <span class="mono">touch-action: manipulation</span>, kontrast bir noktada hâlâ düşük (#64748b text üstü hedef).</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- 5) Kalan eksikler / bilinen sorunlar -->
+        <section class="card">
+          <h2>5) Kalan eksikler / bilinen sorunlar</h2>
+          <ul>
+            <li><span class="status fixed">✓</span> <span class="k">Yedek JSON import:</span> Settings &gt; Veri Yönetimi'ne dosya yükleme eklendi.</li>
+            <li><span class="status fixed">✓</span> <span class="k">Tekrarlayan işlem catch-up:</span> Yükleme + sekme görünür + saatlik interval.</li>
+            <li><span class="status fixed">✓</span> <span class="k">Şifre güvenliği:</span> Düz metin yerine PBKDF2-SHA256 hash; mevcut şifreler ilk başarılı girişte otomatik yükseltilir.</li>
+            <li><span class="status fixed">✓</span> <span class="k">Yerel veritabanı:</span> IndexedDB (Dexie) — kapasite/performans sınırı pratik olarak kalktı.</li>
+            <li><span class="status fixed">✓</span> <span class="k">Örnek veri tarihleri:</span> Artık "bugüne göre" formatında — "Bu ay" filtresi ilk açılışta dolu.</li>
+            <li><span class="status todo">○</span> <span class="k">Çoklu cihaz senkronu yok:</span> Bilinçli karar — veri cihaza özel kalıyor. Cihazlar arası taşıma için JSON yedek var. Otomatik bulut senkron istenirse Faz 3.</li>
+            <li><span class="status fixed">✓</span> <span class="k">i18n eksiklikleri tamamlandı:</span> income / expenses modallarındaki tüm başlıklar, etiketler, placeholder'lar, tekrar periyodu seçenekleri, AI provider açıklamaları, settings reset/category modalları TR + DE sözlüklere taşındı.</li>
+            <li><span class="status fixed">✓</span> <span class="k">Bütçe modülü eklendi:</span> Kategori başına aylık limit, dashboard'da ilerleme çubukları + uyarı bannerı.</li>
+            <li><span class="status todo">○</span> <span class="k">Bildirimler yok:</span> Tekrarlayan işlem yaklaştığında / bütçe aşıldığında bildirim.</li>
+            <li><span class="status todo">○</span> <span class="k">Hesap (account) modeli yok:</span> Birden çok hesap (banka, nakit, kredi kartı) ayrımı yok.</li>
+            <li><span class="status todo">○</span> <span class="k">Test yok:</span> Vitest/Playwright ile en azından kritik akışlar testlenmeli.</li>
+            <li><span class="status fixed">✓</span> <span class="k">Netlify config düzeltildi:</span> Hatalı SPA redirect kaldırıldı, <span class="mono">@netlify/plugin-nextjs</span> eklendi, <span class="mono">/sw.js</span> ve <span class="mono">/manifest.json</span> için doğru Cache-Control header'ları tanımlandı.</li>
+          </ul>
+        </section>
+
+        <!-- 6) Mobil + Tablet + PWA kontrol listesi -->
+        <div class="two">
+          <section class="card">
+            <h2>6) Mobil & Tablet hazırlık kontrol listesi</h2>
+            <ul>
+              <li><span class="status fixed">✓</span> Responsive breakpoint'ler: 1024px (tablet), 768px (mobil), 480px (küçük telefon)</li>
+              <li><span class="status fixed">✓</span> Sticky üst bar + alt navigasyon (mobil/tablet)</li>
+              <li><span class="status fixed">✓</span> 44×44px dokunma hedefleri (WCAG 2.5.5)</li>
+              <li><span class="status fixed">✓</span> <span class="mono">env(safe-area-inset-*)</span> — iPhone çentik / Dynamic Island</li>
+              <li><span class="status fixed">✓</span> iOS odak-zoom kapalı (16px+ input)</li>
+              <li><span class="status fixed">✓</span> Modallar mobil nav'ın üstünde</li>
+              <li><span class="status fixed">✓</span> Yatay kaydırılabilir filtre/chip çubukları</li>
+              <li><span class="status fixed">✓</span> <span class="mono">prefers-reduced-motion</span> desteği</li>
+            </ul>
+          </section>
+
+          <section class="card">
+            <h2>7) PWA kontrol listesi</h2>
+            <ul>
+              <li><span class="status fixed">✓</span> <span class="mono">manifest.json</span> + display: standalone</li>
+              <li><span class="status fixed">✓</span> Service worker (offline shell + runtime cache)</li>
+              <li><span class="status fixed">✓</span> Apple touch icon + apple-mobile-web-app-* meta</li>
+              <li><span class="status fixed">✓</span> Theme color (light/dark)</li>
+              <li><span class="status fixed">✓</span> Maskable ikonlar (Android Adaptive)</li>
+              <li><span class="status fixed">✓</span> <span class="mono">beforeinstallprompt</span> ile uygulama içi yükleme balonu</li>
+              <li><span class="status fixed">✓</span> Uygulama kısayolları (Gelir / Gider / AI)</li>
+              <li><span class="status todo">○</span> Web Push (gelecekte: sunucu gerektirir veya offline reminder)</li>
+              <li><span class="status todo">○</span> Periodic Background Sync (tekrarlayan işlem üretimi)</li>
+            </ul>
+          </section>
+        </div>
+
+        <!-- 8) Yol haritası -->
+        <section class="card">
+          <h2>8) Önerilen geliştirme yol haritası</h2>
+
+          <div class="roadmap-phase p1">
+            <div><span class="pill bad">Faz 1 · Stabilite</span></div>
+            <ul>
+              <li>JSON import (yedekten geri yükleme) — Settings içine dosya inputu.</li>
+              <li>Tekrarlayan işlem üretimi: visibility-change + her saat <span class="mono">setInterval</span> tetiği.</li>
+              <li>Örnek verilerin tarihlerini "bugüne göre" formata çekmek.</li>
+              <li>Şifreyi Web Crypto API (PBKDF2/SHA-256 + salt) ile hash'lemek.</li>
+              <li>i18n: kalan sabit Türkçe stringleri sözlüğe almak.</li>
+            </ul>
+          </div>
+
+          <div class="roadmap-phase p2">
+            <div><span class="pill warn">Faz 2 · Özellik</span></div>
+            <ul>
+              <li><span class="k">Bütçe modülü:</span> Kategori bazında aylık limit + ilerleme çubuğu + aşıldığında dashboard banner.</li>
+              <li><span class="k">Hesap (account) modeli:</span> Banka / nakit / kredi kartı ayrı bakiyeler, hesap içi transfer.</li>
+              <li><span class="k">Hedefler:</span> Tasarruf hedefi (örn. 6 ayda 60.000 ₺) + ilerleme.</li>
+              <li><span class="k">Ekstre içe aktarma:</span> CSV / OFX / camt.053 parse (DE banka standardı) — manuel kayıttan kurtulma.</li>
+              <li><span class="k">Daha zengin raporlar:</span> Yıllık trend, kategori ısı haritası, yıl/yıl karşılaştırma.</li>
+            </ul>
+          </div>
+
+          <div class="roadmap-phase p3">
+            <div><span class="pill good">Faz 3 · Çoklu cihaz / bulut</span></div>
+            <ul>
+              <li>Supabase (veya Firebase) auth + Postgres senkron — telefon ↔ tablet ↔ web aynı veriyle çalışır.</li>
+              <li>Çakışma çözümü (last-write-wins veya CRDT — küçük veri için LWW yeterli).</li>
+              <li>Sunucu tarafı kur servisi cache'i (frankfurter çağrısı tek noktadan).</li>
+              <li>E2E şifreleme opsiyonu (zero-knowledge) — kullanıcı verisi sunucuda da şifreli kalır.</li>
+            </ul>
+          </div>
+
+          <div class="roadmap-phase p4">
+            <div><span class="pill info">Faz 4 · AI &amp; Otomasyon</span></div>
+            <ul>
+              <li>İşlem otomatik kategorilendirme (kural + AI fallback).</li>
+              <li>Doğal dil ekleme: "dün markete 540 TL" → işlem.</li>
+              <li>Aylık AI raporu (mail/push olarak özet + öneri).</li>
+              <li>Anomali tespiti (geçen aya göre ani artışlar).</li>
+              <li>Sesli giriş (Web Speech API) — sürücü modu için.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- 9) Veri / depolama -->
+        <div class="two">
+          <section class="card">
+            <h2>9) Veri Yapısı ve Depolama</h2>
+            <ul>
+              <li><span class="k">Birincil depolama:</span> <span class="mono">IndexedDB / finansai_db</span> — store'lar: <span class="mono">transactions</span>, <span class="mono">recurring</span>, <span class="mono">meta</span>.</li>
+              <li><span class="k">Kalan localStorage anahtarları:</span> <span class="mono">finansai_lang</span> (dil), <span class="mono">finansai_fx_rates_v1</span> (kur cache), <span class="mono">finansai_unlocked_v1</span> (oturum), <span class="mono">finansai_install_dismissed_v1</span>, <span class="mono">finansai_db_migrated_v1</span> (göç bayrağı).</li>
+              <li><span class="k">Yedek:</span> Ayarlar &gt; Veri Yönetimi &gt; JSON <span class="k">İndir</span> ve <span class="k">İçe aktar</span>.</li>
+              <li><span class="k">FX cache:</span> 6 saatten yeni ise yeniden çekilmez; offline'da son kur ile çalışır.</li>
+              <li><span class="k">Veri formatı:</span> Yedek JSON v2 — <span class="mono">{ version, exportDate, transactions, recurringTransactions, settings }</span>.</li>
+            </ul>
+          </section>
+
+          <section class="card">
+            <h2>10) Giriş / Güvenlik</h2>
+            <ul>
+              <li><span class="k">Şifreli giriş opsiyoneldir:</span> Ayarlar &gt; Güvenlik &gt; "Giriş Koruması".</li>
+              <li><span class="k">Şifre saklama:</span> PBKDF2-SHA256 (100.000 iter, 16 byte salt) hash; karşılaştırma sabit zamanlı.</li>
+              <li><span class="k">Gizli soru yanıtı:</span> Aynı yöntemle hash'li olarak saklanır.</li>
+              <li><span class="k">Şifremi unuttum:</span> Giriş ekranında gizli soru yanıtı doğrulanır → yeni şifre.</li>
+              <li><span class="k">Oturum:</span> Açılış kilidi <span class="mono">sessionStorage</span> üzerinden, sekme kapanınca yeniden istenir.</li>
+              <li><span class="k">Eski veriye geri uyum:</span> Düz metin saklanan eski şifre, ilk doğru girişte otomatik olarak hash'lenerek kaydedilir.</li>
+            </ul>
+            <div class="note">
+              <span class="pill good">Yerel + hash</span>
+              Şifre cihazda hash olarak duruyor; ham şifre hiçbir yerde saklanmıyor.
+              Çoklu cihaz/bulut senkron istenirse sunucu kimlik doğrulama (Faz 3) ayrıca planlanmalı.
+            </div>
+          </section>
+        </div>
+
+        <!-- 11) Hızlı çalıştırma -->
+        <section class="card">
+          <h2>11) Hızlı çalıştırma</h2>
+          <ul>
+            <li><span class="mono">npm install</span></li>
+            <li><span class="mono">npm run dev</span> — geliştirme (Turbopack).</li>
+            <li><span class="mono">npm run build</span> &amp; <span class="mono">npm start</span> — prod.</li>
+            <li><span class="mono">npm run lint</span> — eslint.</li>
+            <li>Lighthouse / DevTools &gt; Application: <span class="k">Manifest, Service Worker, Installability</span> başarılı.</li>
+          </ul>
+        </section>
+
+        <!-- Deploy -->
+        <section class="card">
+          <h2>12) Deploy hazırlığı (Netlify)</h2>
+          <ul>
+            <li><span class="k">Plugin:</span> <span class="mono">@netlify/plugin-nextjs</span> devDependency olarak eklendi; <span class="mono">netlify.toml</span> üzerinden register edildi.</li>
+            <li><span class="k">netlify.toml:</span> Hatalı <span class="mono">/* → /index.html</span> redirect kaldırıldı (App Router ile uyumsuzdu). Build command <span class="mono">npm run build</span>; publish dir plugin tarafından yönetildiği için manuel set edilmedi.</li>
+            <li><span class="k">Cache-Control header'ları:</span> <span class="mono">/sw.js</span> → <span class="mono">max-age=0, must-revalidate</span> + <span class="mono">Service-Worker-Allowed: /</span>. <span class="mono">/manifest.json</span> → 1 saat.</li>
+            <li><span class="k">.gitignore:</span> <span class="mono">.netlify/</span> klasörü artık ignore listesinde.</li>
+            <li><span class="k">README:</span> Geliştirme + deploy + PWA notları sıfırdan yazıldı.</li>
+            <li><span class="k">Test edilen:</span> <span class="mono">npm run lint</span> (uyarı yok), <span class="mono">npm run build</span> (7 statik route prerender) — yeşil.</li>
+            <li><span class="k">Adımlar:</span>
+              <ol style="margin: 6px 0 0 18px; color: var(--muted); line-height: 1.55;">
+                <li>Netlify'da yeni site → repoya bağla.</li>
+                <li>Build ayarları <span class="mono">netlify.toml</span>'dan otomatik alınır (Node 20, plugin aktif).</li>
+                <li>İlk deploy sonrası <span class="mono">/manifest.json</span>, <span class="mono">/sw.js</span> ve DevTools &gt; Application bölümünden Installability doğrulanmalı.</li>
+                <li>Yeni sürümlerde <span class="mono">public/sw.js</span> içindeki <span class="mono">VERSION</span> sabitini artır → eski cache'ler temizlenir.</li>
+              </ol>
+            </li>
+          </ul>
+        </section>
+
+      </div>
+
+      <div class="note" style="margin-top: 18px;">
+        Bu dosya, FinansAI sisteminin durum özetini, tablet/mobil + PWA hazırlık seviyesini,
+        kapatılan UI/UX hatalarını ve önerilen geliştirme yol haritasını tek sayfada toplar.
+      </div>
+    </div>
+  </body>
+</html>

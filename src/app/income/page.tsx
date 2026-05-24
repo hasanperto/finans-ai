@@ -1,106 +1,445 @@
 'use client'
 
 import { useState } from 'react'
-import { TrendingUp, Plus, ArrowUpRight, TrendingDown, Wallet } from 'lucide-react'
+import { TrendingUp, Plus, ArrowUpRight, Edit2, Trash2, Check, X, RefreshCw } from 'lucide-react'
+import { useData, type PeriodType, type Transaction } from '../context/DataContext'
+import { useCurrency } from '../context/CurrencyContext'
+import { useI18n } from '../context/I18nContext'
 
-const incomeCategories = [
-  { name: 'Maaş', icon: '💼', amount: 45000, percent: 70, color: '#6366f1' },
-  { name: 'Freelance', icon: '💻', amount: 12000, percent: 19, color: '#10b981' },
-  { name: 'Kira Geliri', icon: '🏠', amount: 5000, percent: 8, color: '#f59e0b' },
-  { name: 'Yatırım', icon: '📈', amount: 2000, percent: 3, color: '#8b5cf6' },
-]
-
-const incomeList = [
-  { id: 1, title: 'Maaş - Mart 2026', amount: 45000, date: '1 Mar 2026', source: 'Ana iş' },
-  { id: 2, title: 'Website Projesi', amount: 8000, date: '5 Mar 2026', source: 'Freelance' },
-  { id: 3, title: 'Logo Tasarım', amount: 4000, date: '10 Mar 2026', source: 'Freelance' },
-  { id: 4, title: 'Binance Staking', amount: 1500, date: '12 Mar 2026', source: 'Yatırım' },
-  { id: 5, title: 'Kira - Kiracı', amount: 5000, date: '15 Mar 2026', source: 'Kira' },
-  { id: 6, title: 'Mobil Uygulama', amount: 6000, date: '20 Mar 2026', source: 'Freelance' },
-]
+const buildPeriodLabel = (t: (key: string, params?: Record<string, string | number>) => string) =>
+  (period: PeriodType, dayOfMonth?: number) => {
+    switch (period) {
+      case 'daily': return t('recurring.everyDay')
+      case 'weekly': return t('recurring.everyWeek')
+      case 'monthly': return dayOfMonth ? t('recurring.monthlyOnDay', { day: dayOfMonth }) : t('recurring.monthlyDefault')
+      case 'yearly': return t('recurring.yearly')
+    }
+  }
 
 export default function IncomePage() {
-  const [showAddModal, setShowAddModal] = useState(false)
-  const totalIncome = incomeCategories.reduce((sum, c) => sum + c.amount, 0)
+  const { transactions, recurringTransactions, addTransaction, updateTransaction, deleteTransaction, addRecurring, updateRecurring, settings, hasPassword, verifyPassword } = useData()
+  const { formatMoney } = useCurrency()
+  const { t } = useI18n()
+  const [showModal, setShowModal] = useState(false)
+  const [showRecurringModal, setShowRecurringModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [newTx, setNewTx] = useState({ title: '', amount: '', categoryId: '' })
+  const [newRecurring, setNewRecurring] = useState<{ title: string; amount: string; categoryId: string; period: PeriodType; dayOfMonth: number }>({ title: '', amount: '', categoryId: '', period: 'monthly', dayOfMonth: 1 })
+  const [authPassword, setAuthPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const [pendingEdit, setPendingEdit] = useState<string | null>(null)
+
+  const getPeriodLabel = buildPeriodLabel(t)
+  const incomeTransactions = transactions.filter(t => t.type === 'income')
+  const totalIncome = incomeTransactions.reduce((sum, t) => sum + t.amount, 0)
+  
+  const recurringIncome = recurringTransactions.filter(r => r.type === 'income' && r.isActive)
+  const recurringTotal = recurringIncome.reduce((sum, r) => sum + r.amount, 0)
+
+  const handleAdd = () => {
+    if (!newTx.title || !newTx.amount || !newTx.categoryId) return
+    const cat = settings.categories.income.find(c => c.id === newTx.categoryId)
+    addTransaction({
+      title: newTx.title,
+      amount: parseFloat(newTx.amount),
+      type: 'income',
+      date: new Date().toISOString().split('T')[0],
+      category: cat?.name || 'Diğer',
+      categoryId: newTx.categoryId,
+    })
+    setNewTx({ title: '', amount: '', categoryId: '' })
+    setShowModal(false)
+  }
+
+  const handleAddRecurring = () => {
+    if (!newRecurring.title || !newRecurring.amount || !newRecurring.categoryId) return
+    const cat = settings.categories.income.find(c => c.id === newRecurring.categoryId)
+    
+    const today = new Date()
+    let nextDue = ''
+    
+    if (newRecurring.period === 'monthly') {
+      // Calculate next monthly occurrence based on selected day
+      const targetDay = newRecurring.dayOfMonth
+      const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, targetDay)
+      // If target day passed this month, use next month
+      if (nextMonth <= today) {
+        nextMonth.setMonth(nextMonth.getMonth() + 1)
+      }
+      nextDue = nextMonth.toISOString().split('T')[0]
+    } else if (newRecurring.period === 'weekly') {
+      const next = new Date(today)
+      next.setDate(next.getDate() + 7)
+      nextDue = next.toISOString().split('T')[0]
+    } else if (newRecurring.period === 'daily') {
+      nextDue = new Date(today.getTime() + 86400000).toISOString().split('T')[0]
+    } else {
+      nextDue = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate()).toISOString().split('T')[0]
+    }
+    
+    addRecurring({
+      title: newRecurring.title,
+      amount: parseFloat(newRecurring.amount),
+      type: 'income',
+      category: cat?.name || 'Diğer',
+      categoryId: newRecurring.categoryId,
+      period: newRecurring.period,
+      nextDue,
+      isActive: true,
+      dayOfMonth: newRecurring.period === 'monthly' ? newRecurring.dayOfMonth : undefined,
+    })
+    setNewRecurring({ title: '', amount: '', categoryId: '', period: 'monthly', dayOfMonth: 1 })
+    setShowRecurringModal(false)
+  }
+
+  const handleEdit = (tx: Transaction) => {
+    if (hasPassword()) {
+      setEditingId(tx.id)
+      setPendingEdit(tx.id)
+      setAuthError('')
+      return
+    }
+    setEditingId(tx.id)
+    setNewTx({ title: tx.title, amount: Math.abs(tx.amount).toString(), categoryId: tx.categoryId })
+    setShowModal(true)
+  }
+
+  const handleUpdate = () => {
+    if (!editingId || !newTx.title || !newTx.amount || !newTx.categoryId) return
+    const cat = settings.categories.income.find(c => c.id === newTx.categoryId)
+    updateTransaction(editingId, {
+      title: newTx.title,
+      amount: parseFloat(newTx.amount),
+      category: cat?.name || 'Diğer',
+      categoryId: newTx.categoryId,
+    })
+    setEditingId(null)
+    setNewTx({ title: '', amount: '', categoryId: '' })
+    setShowModal(false)
+  }
+
+  const handleDelete = (id: string) => {
+    if (hasPassword()) {
+      setPendingDelete(id)
+      setAuthError('')
+    } else {
+      deleteTransaction(id)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (pendingDelete) {
+      if (hasPassword() && !(await verifyPassword(authPassword))) {
+        setAuthError(t('common.wrongPassword'))
+        return
+      }
+      deleteTransaction(pendingDelete)
+      setPendingDelete(null)
+      setAuthPassword('')
+      setAuthError('')
+    }
+  }
+
+  const confirmEdit = async () => {
+    if (pendingEdit) {
+      if (hasPassword() && !(await verifyPassword(authPassword))) {
+        setAuthError(t('common.wrongPassword'))
+        return
+      }
+      const tx = transactions.find(t => t.id === pendingEdit)
+      if (tx) {
+        setNewTx({ title: tx.title, amount: Math.abs(tx.amount).toString(), categoryId: tx.categoryId })
+        setShowModal(true)
+      }
+      setPendingEdit(null)
+      setAuthPassword('')
+      setAuthError('')
+    }
+  }
 
   return (
     <div className="container">
       <div className="page-header">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1 className="page-title">Gelirler</h1>
-            <p className="page-subtitle">Gelir kaynaklarınız ve kırılımları</p>
+            <h1 className="page-title">{t('income.title')}</h1>
+            <p className="page-subtitle">{t('income.subtitle')}</p>
           </div>
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-            <Plus size={18} />
-            Gelir Ekle
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn-secondary" onClick={() => setShowRecurringModal(true)} title={t('income.recurring')}>
+              <RefreshCw size={18} />
+              {t('income.recurring')}
+            </button>
+            <button className="btn btn-primary" onClick={() => { setEditingId(null); setNewTx({ title: '', amount: '', categoryId: '' }); setShowModal(true) }}>
+              <Plus size={18} />
+              {t('common.add')}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Summary Card */}
+      {/* Summary */}
       <div className="card" style={{ background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05))', borderColor: 'rgba(16, 185, 129, 0.3)', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <TrendingUp size={28} color="white" />
-            </div>
-            <div>
-              <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Toplam Gelir (Bu Ay)</div>
-              <div style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981' }}>₺{totalIncome.toLocaleString()}</div>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <TrendingUp size={28} color="white" />
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Geçen Ay</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#10b981' }}>+₺4.200</div>
+          <div>
+            <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.25rem' }}>{t('income.total')}</div>
+            <div style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981' }}>{formatMoney(totalIncome)}</div>
           </div>
         </div>
+        
+        {/* Category breakdown */}
+        <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+          <div style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '0.75rem' }}>{t('income.categoryBreakdown')}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {settings.categories.income.map(cat => {
+              const catTotal = transactions.filter(t => t.type === 'income' && t.categoryId === cat.id).reduce((s, t) => s + t.amount, 0)
+              const percent = totalIncome > 0 ? (catTotal / totalIncome) * 100 : 0
+              if (catTotal === 0) return null
+              return (
+                <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <span style={{ fontSize: '1.25rem' }}>{cat.icon}</span>
+                  <span style={{ flex: 1, fontWeight: 500 }}>{cat.name}</span>
+                  <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>{formatMoney(catTotal)}</span>
+                  <span style={{ 
+                    background: `${cat.color}30`, 
+                    color: cat.color, 
+                    padding: '0.25rem 0.6rem', 
+                    borderRadius: 20, 
+                    fontSize: '0.8rem', 
+                    fontWeight: 600 
+                  }}>
+                    %{percent.toFixed(1)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        
+        {recurringTotal > 0 && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(16,185,129,0.1)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <RefreshCw size={16} color="#10b981" />
+              <span style={{ fontSize: '0.9rem', color: '#94a3b8' }}>{t('income.recurringMonthly')}</span>
+            </div>
+            <span style={{ fontWeight: 600, color: '#10b981' }}>{formatMoney(recurringTotal)} | {t('income.perYear', { value: formatMoney(recurringTotal * 12) })}</span>
+          </div>
+        )}
       </div>
 
-      {/* Income by Category */}
-      <div className="card">
-        <div className="card-header">
-          <h3 className="card-title">Gelir Kaynaklarına Göre Kırılım</h3>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {incomeCategories.map((cat) => (
-            <div key={cat.name}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+      {/* Recurring Income */}
+      {recurringIncome.length > 0 && (
+        <div className="card" style={{ marginBottom: '1.5rem', borderColor: 'rgba(99, 102, 241, 0.3)' }}>
+          <div className="card-header">
+            <h3 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <RefreshCw size={18} style={{ color: '#6366f1' }} />
+              {t('income.recurringIncome')}
+            </h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {recurringIncome.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{r.title}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{getPeriodLabel(r.period, r.dayOfMonth)} · {t('recurring.next')}: {r.nextDue}</div>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span style={{ fontSize: '1.5rem' }}>{cat.icon}</span>
-                  <span style={{ fontWeight: 500 }}>{cat.name}</span>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontWeight: 600, marginRight: '0.75rem' }}>₺{cat.amount.toLocaleString()}</span>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>%{cat.percent}</span>
+                  <span style={{ color: '#10b981', fontWeight: 600 }}>+{formatMoney(r.amount)}</span>
+                  <button onClick={() => updateRecurring(r.id, { isActive: false })} style={{ padding: '0.375rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <X size={16} />
+                  </button>
                 </div>
               </div>
-              <div style={{ height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3 }}>
-                <div style={{ width: `${cat.percent}%`, height: '100%', background: cat.color, borderRadius: 3, transition: 'width 0.3s' }} />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Income List */}
+      {/* All Transactions */}
       <div className="card">
         <div className="card-header">
-          <h3 className="card-title">Tüm Gelir Kayıtları</h3>
+          <h3 className="card-title">{t('income.allRecords')}</h3>
         </div>
-        {incomeList.map((item) => (
-          <div key={item.id} className="list-item">
-            <div className="list-icon" style={{ background: 'rgba(16, 185, 129, 0.15)' }}>
-              <ArrowUpRight size={20} color="#10b981" />
-            </div>
-            <div className="list-content">
-              <div className="list-title">{item.title}</div>
-              <div className="list-subtitle">{item.date} · {item.source}</div>
-            </div>
-            <div className="list-amount income">+₺{item.amount.toLocaleString()}</div>
-          </div>
-        ))}
+        {incomeTransactions.length === 0 ? (
+          <p style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>{t('income.empty')}</p>
+        ) : (
+          incomeTransactions.map((tx) => {
+            const cat = settings.categories.income.find(c => c.id === tx.categoryId)
+            return (
+              <div key={tx.id} className="list-item">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                  <div className="list-icon" style={{ background: cat ? `${cat.color}20` : 'rgba(16, 185, 129, 0.15)' }}>
+                    <ArrowUpRight size={20} color={cat?.color || '#10b981'} />
+                    {tx.isRecurring && <RefreshCw size={10} style={{ position: 'absolute', bottom: 2, right: 2 }} color="#6366f1" />}
+                  </div>
+                  <div className="list-content">
+                    <div className="list-title">{tx.title} {tx.isRecurring && <span style={{ fontSize: '0.7rem', color: '#6366f1' }}>🔄</span>}</div>
+                    <div className="list-subtitle">{tx.date} · {tx.category}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div className="list-amount income">+{formatMoney(tx.amount)}</div>
+                  <button onClick={() => handleEdit(tx)} style={{ padding: '0.375rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}>
+                    <Edit2 size={16} />
+                  </button>
+                  <button onClick={() => handleDelete(tx.id)} style={{ padding: '0.375rem', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}>
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: '1.5rem' }}>{editingId ? t('income.editTitle') : t('income.newTitle')}</h2>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('common.title')}</label>
+              <input type="text" value={newTx.title} onChange={(e) => setNewTx({ ...newTx, title: e.target.value })} className="chat-input" placeholder={t('income.titlePlaceholder')} style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('common.amount')}</label>
+              <input type="number" value={newTx.amount} onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })} className="chat-input" placeholder="0" style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('common.category')}</label>
+              <select value={newTx.categoryId} onChange={(e) => setNewTx({ ...newTx, categoryId: e.target.value })} style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>
+                <option value="">{t('common.categoryPlaceholder')}</option>
+                {settings.categories.income.map(c => (
+                  <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => { setShowModal(false); setEditingId(null) }}>{t('common.cancel')}</button>
+              <button className="btn btn-primary" onClick={editingId ? handleUpdate : handleAdd}>
+                <Check size={18} />
+                {editingId ? t('common.update') : t('common.add')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recurring Modal */}
+      {showRecurringModal && (
+        <div className="modal-overlay" onClick={() => setShowRecurringModal(false)}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <RefreshCw size={20} style={{ color: '#6366f1' }} />
+              {t('income.recurringNewTitle')}
+            </h2>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('common.title')}</label>
+              <input type="text" value={newRecurring.title} onChange={(e) => setNewRecurring({ ...newRecurring, title: e.target.value })} className="chat-input" placeholder={t('income.titlePlaceholder')} style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('common.amount')}</label>
+              <input type="number" value={newRecurring.amount} onChange={(e) => setNewRecurring({ ...newRecurring, amount: e.target.value })} className="chat-input" placeholder="0" style={{ width: '100%' }} />
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('common.category')}</label>
+              <select value={newRecurring.categoryId} onChange={(e) => setNewRecurring({ ...newRecurring, categoryId: e.target.value })} style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>
+                <option value="">{t('common.categoryPlaceholder')}</option>
+                {settings.categories.income.map(c => (
+                  <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('recurring.title')}</label>
+              <select value={newRecurring.period} onChange={(e) => setNewRecurring({ ...newRecurring, period: e.target.value as PeriodType })} style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '0.75rem 1rem', color: 'var(--text-primary)' }}>
+                <option value="daily">{t('recurring.daily')}</option>
+                <option value="weekly">{t('recurring.weekly')}</option>
+                <option value="monthly">{t('recurring.monthly')}</option>
+                <option value="yearly">{t('recurring.yearly')}</option>
+              </select>
+            </div>
+
+            {newRecurring.period === 'monthly' && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('recurring.dayOfMonth')}</label>
+                <select
+                  value={newRecurring.dayOfMonth || 1}
+                  onChange={(e) => setNewRecurring({ ...newRecurring, dayOfMonth: parseInt(e.target.value) })}
+                  style={{ width: '100%', background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '0.75rem 1rem', color: 'var(--text-primary)' }}
+                >
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
+                    <option key={day} value={day}>{t('recurring.dayOption', { day })}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div style={{ padding: '1rem', background: 'rgba(99,102,241,0.1)', borderRadius: 10, marginBottom: '1.5rem' }}>
+              <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>{t('recurring.nextDateAuto')}</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, marginTop: '0.25rem' }}>
+                {newRecurring.period === 'daily' && t('recurring.everyDay')}
+                {newRecurring.period === 'weekly' && t('recurring.weekly7days')}
+                {newRecurring.period === 'monthly' && t('recurring.monthlyOnDay', { day: newRecurring.dayOfMonth || 1 })}
+                {newRecurring.period === 'yearly' && t('recurring.yearly')}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setShowRecurringModal(false)}>{t('common.cancel')}</button>
+              <button className="btn btn-primary" onClick={handleAddRecurring}>
+                <Check size={18} />
+                {t('common.add')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation */}
+      {pendingDelete && (
+        <div className="modal-overlay" onClick={() => setPendingDelete(null)}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ color: 'var(--danger)', marginBottom: '0.5rem' }}>{t('dialog.delete.title')}</h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{t('common.cannotUndo')}</p>
+            {hasPassword() && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('auth.passwordPlaceholder')}</label>
+                <input type="password" value={authPassword} onChange={(e) => { setAuthPassword(e.target.value); setAuthError('') }} className="chat-input" placeholder={t('common.password')} style={{ width: '100%' }} />
+              </div>
+            )}
+            {authError && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '1rem' }}>{authError}</div>}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => { setPendingDelete(null); setAuthPassword(''); setAuthError('') }}>{t('common.cancel')}</button>
+              <button className="btn" onClick={confirmDelete} style={{ background: 'var(--danger)', color: 'white' }}>
+                <Trash2 size={16} /> {t('common.delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Confirmation */}
+      {pendingEdit && (
+        <div className="modal-overlay" onClick={() => { setPendingEdit(null); setAuthPassword('') }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 400 }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: '0.5rem' }}>{t('common.passwordRequired')}</h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{t('dialog.editPasswordPrompt')}</p>
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'block', marginBottom: '0.5rem' }}>{t('common.password')}</label>
+              <input type="password" value={authPassword} onChange={(e) => { setAuthPassword(e.target.value); setAuthError('') }} className="chat-input" placeholder={t('common.password')} style={{ width: '100%' }} />
+            </div>
+            {authError && <div style={{ color: 'var(--danger)', fontSize: '0.85rem', marginBottom: '1rem' }}>{authError}</div>}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => { setPendingEdit(null); setAuthPassword(''); setAuthError('') }}>{t('common.cancel')}</button>
+              <button className="btn btn-primary" onClick={confirmEdit}>{t('common.confirm')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

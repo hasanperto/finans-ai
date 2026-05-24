@@ -1,0 +1,28 @@
+[build]
+  command = "npm run build"
+  # Don't set publish here — the Next.js plugin manages routing/output.
+
+[build.environment]
+  NODE_VERSION = "20"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[dev]
+  command = "npm run dev"
+  port = 3457
+  targetPort = 3457
+
+# Service worker must always be served from the origin's root with a short cache.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Service-Worker-Allowed = "/"
+
+# Manifest can be cached briefly.
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"

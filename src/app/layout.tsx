@@ -1,12 +1,40 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Link from "next/link";
-import { LayoutDashboard, ArrowUpCircle, ArrowDownCircle, Receipt, MessageCircle, Settings } from "lucide-react";
-import MobileNav from "./components/MobileNav";
+import AppShell from "./AppShell";
+import Providers from "./Providers";
 
 export const metadata: Metadata = {
   title: "FinansAI - Akıllı Finans Yönetimi",
   description: "AI destekli kişisel finans yönetim paneli",
+  manifest: "/manifest.json",
+  applicationName: "FinansAI",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "FinansAI",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { url: "/icon-512.svg", sizes: "512x512", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/icon-192.svg", sizes: "192x192" }],
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0f" },
+    { media: "(prefers-color-scheme: light)", color: "#6366f1" },
+  ],
 };
 
 export default function RootLayout({
@@ -17,47 +45,20 @@ export default function RootLayout({
   return (
     <html lang="tr">
       <body>
-        <div className="app-layout">
-          {/* Desktop Sidebar */}
-          <aside className="sidebar">
-            <div className="sidebar-logo">FinansAI</div>
-            
-            <nav className="sidebar-nav">
-              <Link href="/" className="nav-item">
-                <LayoutDashboard size={20} />
-                Genel Bakış
-              </Link>
-              <Link href="/income" className="nav-item">
-                <ArrowUpCircle size={20} />
-                Gelirler
-              </Link>
-              <Link href="/expenses" className="nav-item">
-                <ArrowDownCircle size={20} />
-                Giderler
-              </Link>
-              <Link href="/transactions" className="nav-item">
-                <Receipt size={20} />
-                İşlemler
-              </Link>
-              <Link href="/assistant" className="nav-item ai">
-                <MessageCircle size={20} />
-                AI Asistan
-              </Link>
-              <Link href="/settings" className="nav-item">
-                <Settings size={20} />
-                Ayarlar
-              </Link>
-            </nav>
-          </aside>
-
-          {/* Main Content */}
-          <main className="main-content">
-            {children}
-          </main>
-
-          {/* Mobile Bottom Navigation */}
-          <MobileNav />
-        </div>
+        <Providers>
+          <AppShell>{children}</AppShell>
+        </Providers>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function () {
+                  navigator.serviceWorker.register('/sw.js').catch(function(){});
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

@@ -2,155 +2,199 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, Loader2, Sparkles, Zap } from 'lucide-react'
+import { useData, type Transaction } from '../context/DataContext'
+import { useCurrency } from '../context/CurrencyContext'
+import { useI18n } from '../context/I18nContext'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
 }
 
-const quickQuestions = [
-  { text: 'Sigara harcamamı nasıl azaltabilirim?', emoji: '🚬' },
-  { text: 'Aylık ₺5.000 tasarruf hedefi için öneri', emoji: '🎯' },
-  { text: 'En iyi yatırım seçenekleri neler?', emoji: '📈' },
-  { text: 'Bütçemi nasıl optimize ederim?', emoji: '⚡' },
-]
+// Get provider-specific endpoint
+function getProviderEndpoint(provider: string, apiUrl: string) {
+  switch (provider) {
+    case 'gemini':
+      return `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=`
+    case 'openai':
+      return 'https://api.openai.com/v1/chat/completions'
+    case 'minimax':
+      return 'https://api.minimax.chat/v1/text/chatcompletion_v2'
+    case 'openrouter':
+      return 'https://openrouter.ai/api/v1/chat/completions'
+    case 'custom':
+      return apiUrl || ''
+    default:
+      return ''
+  }
+}
 
-// Financial context that would be sent to AI
-const financialContext = {
-  monthlyIncome: 58000,
-  monthlyExpenses: 32000,
-  savingsRate: 44.8,
-  topExpenses: [
-    { category: 'Kira', amount: 15000, percent: 47 },
-    { category: 'Gıda', amount: 8000, percent: 25 },
-    { category: 'Ulaşım', amount: 4500, percent: 14 },
-  ],
-  recentTransactions: 15,
-  goal: 'Aylık %30 tasarruf oranı hedefi'
+function buildFinancialSummary(transactions: Transaction[]) {
+  const now = new Date()
+  const thisMonth = transactions.filter(t => {
+    const d = new Date(t.date)
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  })
+  
+  const income = thisMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const expense = Math.abs(thisMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0))
+  const balance = income - expense
+  const savingsRate = income > 0 ? ((balance / income) * 100).toFixed(1) : '0'
+  
+  // Category breakdown
+  const expenseCategories = thisMonth.filter(t => t.type === 'expense').reduce((acc, t) => {
+    acc[t.category] = (acc[t.category] || 0) + Math.abs(t.amount)
+    return acc
+  }, {} as Record<string, number>)
+  
+  const topExpenses = (Object.entries(expenseCategories) as [string, number][])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([category, amount]) => ({
+      category,
+      amount,
+      percent: expense > 0 ? ((amount / expense) * 100).toFixed(1) : '0'
+    }))
+  
+  return {
+    income,
+    expense,
+    balance,
+    savingsRate,
+    topExpenses,
+    transactionCount: thisMonth.length,
+  }
 }
 
 export default function AssistantPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: `Merhaba! 👋 Ben FinansAI asistanınızım. 
-
-Finansal durumunuzu analiz edebilir, tasarruf önerileri sunabilir ve bütçe planlamasında size yardımcı olabilirim.
-
-**Mevcut Durumunuz:**
-- Aylık Gelir: ₺58.000
-- Aylık Gider: ₺32.000  
-- Tasarruf Oranı: %44.8
-- Hedef: %30 tasarruf
-
-Size nasıl yardımcı olabilirim?`
-    }
-  ])
+  const { transactions, settings } = useData()
+  const { formatMoney } = useCurrency()
+  const { language, t } = useI18n()
+  
+  const financialSummary = buildFinancialSummary(transactions)
+  const providerLabel = settings.aiProvider
+  
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const header = language === 'de'
+      ? `Hallo! Ich bin Ihr FinansAI Assistent.`
+      : `Merhaba! Ben FinansAI asistanınızım.`
+    const body = language === 'de'
+      ? `\n\nIch kann Ihre Finanzen analysieren, Sparvorschläge machen und beim Budget helfen.`
+      : `\n\nFinansal durumunuzu analiz edebilir, tasarruf önerileri sunabilir ve bütçe planlamasında size yardımcı olabilirim.`
+    const summaryTitle = language === 'de' ? `\n\nAktueller Stand:` : `\n\nMevcut Durumunuz:`
+    const summaryLines = [
+      language === 'de' ? `- Monatliche Einnahmen: ${formatMoney(financialSummary.income)}` : `- Aylık Gelir: ${formatMoney(financialSummary.income)}`,
+      language === 'de' ? `- Monatliche Ausgaben: ${formatMoney(financialSummary.expense)}` : `- Aylık Gider: ${formatMoney(financialSummary.expense)}`,
+      language === 'de' ? `- Sparquote: %${financialSummary.savingsRate}` : `- Tasarruf Oranı: %${financialSummary.savingsRate}`,
+      language === 'de' ? `- Übrig: ${formatMoney(financialSummary.balance)}` : `- Kalan: ${formatMoney(financialSummary.balance)}`,
+      language === 'de' ? `\n${financialSummary.transactionCount} Einträge vorhanden.` : `\n${financialSummary.transactionCount} işlem kayıtlı.`,
+      language === 'de' ? `\nWie kann ich helfen?` : `\nSize nasıl yardımcı olabilirim?`,
+    ].join('\n')
+    return [{ role: 'assistant', content: `${header}${body}${summaryTitle}\n${summaryLines}` }]
+  })
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const callAI = async (userMessage: string) => {
+    const { aiProvider, aiApiKey, aiApiUrl } = settings
+    
+    if (!aiApiKey) {
+      throw new Error(t('assistant.setupKeyError'))
+    }
+    
+    const endpoint = getProviderEndpoint(aiProvider, aiApiUrl)
+    if (!endpoint) {
+      throw new Error(t('assistant.endpointError'))
+    }
+    
+    // Build context with financial data
+    const context = `Sen bir finansal danışman asistanısın. Kullanıcının finansal verileri:
+- Aylık Gelir: ${formatMoney(financialSummary.income)}
+- Aylık Gider: ${formatMoney(financialSummary.expense)}
+- Net Bakiye: ${formatMoney(financialSummary.balance)}
+- Tasarruf Oranı: %${financialSummary.savingsRate}
+- Toplam İşlem: ${financialSummary.transactionCount}
+
+En yüksek gider kategorileri:
+${financialSummary.topExpenses.map(e => `- ${e.category}: ${formatMoney(e.amount)} (%${e.percent})`).join('\n')}
+
+Kullanıcı sorusu: ${userMessage}`
+    
+    if (aiProvider === 'gemini') {
+      // Google Gemini
+      const response = await fetch(`${endpoint}${aiApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: context }] }]
+        })
+      })
+      const data = await response.json()
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Yanıt alınamadı'
+    } else if (aiProvider === 'openai' || aiProvider === 'openrouter' || aiProvider === 'minimax' || aiProvider === 'custom') {
+      // OpenAI compatible
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${aiApiKey}`
+        },
+        body: JSON.stringify({
+          model: aiProvider === 'openai' ? 'gpt-4' : 'default',
+          messages: [
+            { role: 'system', content: 'Sen FinansAI asistanısın. Türkçe ve finans konusunda uzman yanıtlar ver.' },
+            { role: 'user', content: context }
+          ],
+          max_tokens: 1000,
+          temperature: 0.7
+        })
+      })
+      const data = await response.json()
+      return data.choices?.[0]?.message?.content || 'Yanıt alınamadı'
+    }
+    
+    return language === 'de' ? 'Keine Antwort' : 'Yanıt alınamadı'
+  }
+
   const handleSend = async (text?: string) => {
     const messageText = text || input
     if (!messageText.trim() || isLoading) return
 
-    // Add user message
     const userMessage: Message = { role: 'user', content: messageText }
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
+    setError('')
 
-    // Simulate AI response (in real app, this would call an API)
-    setTimeout(() => {
-      let response = ''
-      
-      if (messageText.includes('sigara') || messageText.includes('kötü alışkanlık')) {
-        response = `🚬 Sigara harcamalarınızı azaltmak için size birkaç önerim var:
-
-1. **Günlük limit belirleyin** - Günde maksimum ₺50 gibi bir limit
-2. **Alternatif bulun** - Paranın yetmediğini hissettiğinizde nane, çiklet gibi alternatifler
-3. **Bütçe kesintisi yapın** - Sigara için ₺1.500 gibi bir bütçe ayırın, fazlası için "hayır" deyin
-4. **Hedef bağlayın** - Biriktirdiğiniz parayla yatırım hesabı açın
-
-Bu ay sigaraya ₺1.200 harcadığınızı varsayarsak, yıllık tasarruf potansiyeliniz: **₺14.400**
-
-Başka sorularınız var mı?`
-      } else if (messageText.includes('tasarruf') || messageText.includes('biriktir')) {
-        response = `🎯 ${financialContext.goal} için harika bir strateji:
-
-**Kısa Vadeli (1-3 Ay):**
-- Gereksiz abonelikleri iptal et → ₺500/ay
-- Market harcamalarını %20 azalt → ₺1.600/ay
-- Dışarı yemek yerine evde pişir → ₺800/ay
-
-**Orta Vadeli (3-6 Ay):**
-- Ek gelir kaynağı oluştur (freelance)
-- Yatırım hesabı aç - faiz getirisi
-- 6 ay emergency fund biriktir
-
-**Hedefe Ulaşmak İçin:**
-Mevcut tasarruf oranınız %44.8. Hedefinize ulaşmak için ₺2.800 daha biriktirmeniz gerekiyor.
-
-Başarılar! 💪`
-      } else if (messageText.includes('yatırım') || messageText.includes('yatirim')) {
-        response = `📈 Mevcut finansal durumunuza göre yatırım önerileri:
-
-**Düşük Risk (Tasarruf Hesabı, Devlet Tahvili)**
-- Getiri: %15-20 yıllık
-- Önerilen süre: 1-2 yıl
-- Avantaj: Güvenli, likit
-
-**Orta Risk (Borsa, ETF)**
-- Getiri: %20-30 potansiyel (uzun vadede)
-- Önerilen: ABD borsa ETF'leri (VOO, VTI)
-- Dezavantaj: Kısa vadede dalgalı
-
-**Yüksek Risk (Kripto, Spekülatif)**
-- Sadece kaybetmeyi göze aldığınız para ile
-- Maximum portföyün %5-10'u
-
-**Önerim:** 
-Şu an %44.8 tasarruf oranınız var. Bunun ₺10.000'ini düşük riskli yatırıma, ₺5.000'ini orta riskli yatırıma yönlendirebilirsiniz.`
-      } else if (messageText.includes('bütçe') || messageText.includes('butce') || messageText.includes('optimiz')) {
-        response = `⚡ Bütçenizi optimize etmek için:
-
-**Mevcut Durum Analizi:**
-- Gelir: ₺58.000
-- Gider: ₺32.000
-- Net: ₺26.000 (tasarruf edilebilir)
-
-**Optimizasyon Önerileri:**
-
-| kategori | Mevcut | Önerilen | Tasarruf |
-|----------|--------|----------|----------|
-| Kira | ₺15.000 | ₺12.000 | +₺3.000 |
-| Gıda | ₺8.000 | ₺6.500 | +₺1.500 |
-| Abonelik | ₺1.000 | ₺500 | +₺500 |
-| **Toplam** | | | **+₺5.000** |
-
-Bu değişikliklerle aylık tasarrufunuzu ₺26.000 → ₺31.000'e çıkarabilirsiniz!`
-      } else {
-        response = `Anladım! Finansal sorularınızı yanıtlamaktan mutluluk duyarım.
-
-Şu konularda yardımcı olabilirim:
-- 📊 Bütçe analizi ve optimizasyonu
-- 🎯 Tasarruf hedefleri belirleme
-- 💰 Yatırım önerileri
-- 📉 Harcama kesinti önerileri
-- 📈 Finansal hedeflere ulaşma stratejileri
-
-Biraz daha spesifik olursanız daha detaylı yardımcı olabilirim. 🤔`
-      }
-
+    try {
+      const response = await callAI(messageText)
       const assistantMessage: Message = { role: 'assistant', content: response }
       setMessages(prev => [...prev, assistantMessage])
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : (language === 'de' ? 'Ein Fehler ist aufgetreten' : 'Bir hata oluştu')
+      setError(message)
+      const errorMessage: Message = { 
+        role: 'assistant', 
+        content: `${t('assistant.errorPrefix')}${message}` 
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
       setIsLoading(false)
-    }, 1500)
+    }
   }
+
+  const quickQuestions = [
+    { text: language === 'de' ? 'Analysiere meine Finanzen' : 'Finansal durumumu analiz et', emoji: '📊' },
+    { text: language === 'de' ? 'Welche Spartipps habe ich?' : 'Tasarruf önerilerim neler?', emoji: '💰' },
+    { text: language === 'de' ? 'Optimiere mein Budget' : 'Bütçemi optimize et', emoji: '⚡' },
+    { text: language === 'de' ? 'Was sind meine größten Ausgaben?' : 'En yüksek giderlerim hangileri?', emoji: '📉' },
+  ]
 
   return (
     <div className="container">
@@ -160,8 +204,14 @@ Biraz daha spesifik olursanız daha detaylı yardımcı olabilirim. 🤔`
             <Sparkles size={24} color="white" />
           </div>
           <div>
-            <h1 className="page-title">AI Asistan</h1>
-            <p className="page-subtitle">Finansal kararlarınızda size rehberlik ediyorum</p>
+            <h1 className="page-title">{t('assistant.title')}</h1>
+            <p className="page-subtitle">
+              {settings.aiApiKey ? (
+                <span style={{ color: '#10b981' }}>{t('assistant.subtitle.connected', { provider: providerLabel })}</span>
+              ) : (
+                <span style={{ color: '#ef4444' }}>{t('assistant.subtitle.noKey')}</span>
+              )}
+            </p>
           </div>
         </div>
       </div>
@@ -170,13 +220,14 @@ Biraz daha spesifik olursanız daha detaylı yardımcı olabilirim. 🤔`
       <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem 1.25rem' }}>
         <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Zap size={14} />
-          Hızlı Sorular
+          {t('assistant.quickQuestions')}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
           {quickQuestions.map((q, i) => (
             <button
               key={i}
               onClick={() => handleSend(q.text)}
+              disabled={isLoading}
               style={{ 
                 padding: '0.5rem 1rem', 
                 borderRadius: 20, 
@@ -186,7 +237,9 @@ Biraz daha spesifik olursanız daha detaylı yardımcı olabilirim. 🤔`
                 fontSize: '0.85rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.375rem'
+                gap: '0.375rem',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                opacity: isLoading ? 0.5 : 1,
               }}
             >
               <span>{q.emoji}</span>
@@ -197,9 +250,14 @@ Biraz daha spesifik olursanız daha detaylı yardımcı olabilirim. 🤔`
       </div>
 
       {/* Chat */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 20rem)', padding: 0 }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 22rem)', padding: 0 }}>
         {/* Messages */}
         <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {error && (
+            <div style={{ padding: '0.75rem 1rem', border: '1px solid rgba(239, 68, 68, 0.35)', background: 'rgba(239, 68, 68, 0.08)', borderRadius: 12, color: '#fca5a5' }}>
+              {t('assistant.errorPrefix')}{error}
+            </div>
+          )}
           {messages.map((msg, i) => (
             <div key={i} style={{ display: 'flex', gap: '0.75rem', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
               {msg.role !== 'user' && (
@@ -247,7 +305,7 @@ Biraz daha spesifik olursanız daha detaylı yardımcı olabilirim. 🤔`
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Finansal bir soru sorun..."
+            placeholder={t('assistant.inputPlaceholder')}
             className="chat-input"
             disabled={isLoading}
           />

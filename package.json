@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.1",
+    "dexie": "^4.4.2",
     "lucide-react": "^1.9.0",
     "next": "16.2.4",
     "react": "19.2.4",
@@ -17,6 +18,7 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.11",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
